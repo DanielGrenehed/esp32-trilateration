@@ -13,4 +13,8 @@ int str_are_equal_to(const char*, const char*, int);
 
 void str_copy(const char*, char* , int);
 
+int str_parse_hex(const char*, int, char* );
+
+int str_parse_int(const char*);
+
 #endif /* TRILAT_STR_H */

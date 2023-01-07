@@ -5,7 +5,7 @@
 #define BT_MAC_LENGTH 6
 
 struct bt_scan_device_t{
-    int8_t rssi;
+    int8_t rssi, addr_type;
     char mac[BT_MAC_LENGTH];
 };
 

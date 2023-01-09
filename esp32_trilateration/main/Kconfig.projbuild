@@ -46,5 +46,9 @@ menu "ESP32 Trilateration Configuration"
         default 5
         help 
             Set the Maximum retry to avoid station reconnecting to the AP unlimited times when the AP is really inexistent. 
-    
+    config TRILAT_WEBSOCKET_MESSAGE_BUFFER_SIZE
+        int "Size of websocket message buffer"
+        default 1024
+        help
+            Defines the maximum size of messages buffer for the websocket module.s
 endmenu

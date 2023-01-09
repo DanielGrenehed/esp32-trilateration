@@ -160,7 +160,7 @@ static void esp_gap_callback(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_
     }
 }
 
-static volatile int scan_params_set = 0;
+static int scan_params_set = 0;
 
 static volatile esp_ble_scan_params_t ble_scan_params = {
         .scan_type          = BLE_SCAN_TYPE_PASSIVE,

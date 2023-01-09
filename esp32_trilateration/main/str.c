@@ -45,6 +45,14 @@ void str_copy(const char* from, char* to, int num) {
     }
 }
 
+void str_copy_str(const char* from, char* to) {
+    int i = 0;
+    while (from[i-1] != 0) {
+        to[i] = from[i];
+        i++;
+    }
+}
+
 static int is_non_displayable_char(char chr) {
     return chr<(' '+1);
 }

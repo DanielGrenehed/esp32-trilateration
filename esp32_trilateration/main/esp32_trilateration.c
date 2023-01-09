@@ -8,6 +8,7 @@
 #include "bluetooth.h"
 #include "wifi.h"
 #include "str.h"
+#include "websocket.h"
 
 #define LED_PIN GPIO_NUM_22
 
@@ -42,6 +43,7 @@ static void callback(const char* command) {
     else if ((c_end = str_starts_with(command, "bt")) > -1) on_bt_command(command+c_end);
     else if ((c_end = str_starts_with(command, "wf")) > -1) on_wifi_command(command+c_end);
     else if ((c_end = str_starts_with(command, "hex")) > -1) on_parse_hex_command(command+c_end);
+    else if ((c_end = str_starts_with(command, "ws")) > -1) on_ws_command(command+c_end);
     else if (str_starts_with(command, "reset")) restart();
     else {ESP_LOGI(TAG, "Unknown command: %s",command);}
 

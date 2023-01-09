@@ -2,3 +2,5 @@
 build
 .vscode
 .DS_Store
+*.class
+managed_components

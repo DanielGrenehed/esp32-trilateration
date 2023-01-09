@@ -162,7 +162,7 @@ static void esp_gap_callback(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_
 
 static int scan_params_set = 0;
 
-static volatile esp_ble_scan_params_t ble_scan_params = {
+static esp_ble_scan_params_t ble_scan_params = {
         .scan_type          = BLE_SCAN_TYPE_PASSIVE,
         .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
         .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
@@ -219,6 +219,6 @@ void on_bt_command(const char * arguments) {
     else if (str_starts_with(arguments, "c") > -1) { // print closest device info
         int closest = get_closest_device_buffer_index();
         log_bt_device(&bt_scan_buffer[closest]);
-    } else ESP_LOGW(TAG, "Unknown bt arguments: %s", arguments);
+    } else ESP_LOGW(TAG, "Unknown argument: %s", arguments);
 }
 

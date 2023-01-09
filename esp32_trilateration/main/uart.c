@@ -4,10 +4,10 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "uart.h"
-
+#include "str.h"
 
 static const char *TAG = "UART TEST";
-#define BUF_SIZE (1024)
+#define COMMAND_BUFFER_SIZE CONFIG_TRILAT_UART_COMMAND_BUFFER_SIZE
 
 static void (*command_callback)(const char*) = NULL;
 void uart_cli_set_command_callback(void (*callback)(const char*)) {
@@ -15,10 +15,7 @@ void uart_cli_set_command_callback(void (*callback)(const char*)) {
 }
 
 static void uart_write_string(const char *chr) {
-    int len = 0;
-    char * end = chr;
-    while ((*end++) != 0) len++;
-    uart_write_bytes(TRILAT_UART_PORT_NUM, chr, len); 
+    uart_write_bytes(TRILAT_UART_PORT_NUM, chr, str_length(chr)); 
 }
 
 static void uart_newline() {
@@ -37,7 +34,7 @@ void uart_write_line(const char* line) {
 }
 
 static int input_buffer_end = 0;
-static char input_buffer[1024];
+static char input_buffer[COMMAND_BUFFER_SIZE];
 
 static void add_to_buffer(char chr) {
     if (chr == 0b1000 && input_buffer_end > 0) {
@@ -71,16 +68,16 @@ void uart_cli_task(void *arg) {
     };
     int interrupt_allocation_flags = 0;
 
-    ESP_ERROR_CHECK(uart_driver_install(TRILAT_UART_PORT_NUM, BUF_SIZE * 2, 0, 0, NULL, interrupt_allocation_flags));
+    ESP_ERROR_CHECK(uart_driver_install(TRILAT_UART_PORT_NUM, COMMAND_BUFFER_SIZE * 2, 0, 0, NULL, interrupt_allocation_flags));
     ESP_ERROR_CHECK(uart_param_config(TRILAT_UART_PORT_NUM, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(TRILAT_UART_PORT_NUM, TRILAT_UART_TXD, TRILAT_UART_RXD, TRILAT_UART_RTS, TRILAT_UART_CTS));
 
-    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
+    uint8_t *data = (uint8_t *) malloc(COMMAND_BUFFER_SIZE);
 
     ESP_LOGI(TAG, "Staring UART CLI");
     int input_length = 0;
     while (1) {
-        int len = uart_read_bytes(TRILAT_UART_PORT_NUM, data, (BUF_SIZE - 1), 20 / portTICK_PERIOD_MS);
+        int len = uart_read_bytes(TRILAT_UART_PORT_NUM, data, (COMMAND_BUFFER_SIZE - 1), 20 / portTICK_PERIOD_MS);
         
         
         if (len) {

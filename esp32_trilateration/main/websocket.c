@@ -5,6 +5,7 @@
 #include "str.h"
 
 #define WEBSOCKET_MESSAGE_BUFFER_SIZE CONFIG_TRILAT_WEBSOCKET_MESSAGE_BUFFER_SIZE
+#define WEBSOCKET_URI_MAX_LENGTH CONFIG_TRILAT_WEBSOCKET_URI_MAX_LENGTH
 static const char *TAG = "WebSocket";
 
 static esp_websocket_client_config_t websocket_config = {};
@@ -80,10 +81,9 @@ void ws_send(const char* data, int len) {
         esp_websocket_client_send_text(websocket_client, data, len, portMAX_DELAY);
     }
 }
-static char * ws_uri[100];
+static char ws_uri[WEBSOCKET_URI_MAX_LENGTH];
 static void set_uri(const char *uri) {
     str_copy_str(uri, ws_uri);
-    //str_copy_str(uri, websocket_config.uri);
     websocket_config.uri = ws_uri;
 }
 

@@ -41,5 +41,10 @@ menu "ESP32 Trilateration Configuration"
         default 2048
         help
             Defines stack size for TRILAT UART. Insufficient stack size can cause crash.
+    config TRILAT_WIFI_MAXIMUM_RETRY
+        int "Maximum retries to connect to WiFi"
+        default 5
+        help 
+            Set the Maximum retry to avoid station reconnecting to the AP unlimited times when the AP is really inexistent. 
     
 endmenu

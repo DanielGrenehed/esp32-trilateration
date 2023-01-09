@@ -116,16 +116,10 @@ static void bt_device_scan_result_callback(struct ble_scan_result_evt_param para
     //ESP_LOG_BUFFER_CHAR(TAG, param.ble_adv, param.adv_data_len);
 }
 
-static uint8_t addr_types_received = 0;
-
 static void bt_scan_result_evt_callback(struct ble_scan_result_evt_param scan_result) {
     switch (scan_result.search_evt) {
         case ESP_GAP_SEARCH_INQ_RES_EVT:
             bt_device_scan_result_callback(scan_result);
-            if (!(addr_types_received & 1 << scan_result.ble_addr_type)) {
-                ESP_LOGI(TAG, "New address type received: %d", scan_result.ble_addr_type);
-                addr_types_received |= 1 << scan_result.ble_addr_type;
-            }
             break;
         case ESP_GAP_SEARCH_DISC_RES_EVT:
             ESP_LOGI(TAG, "ESP_GAP_SEARCH_DISC_RES_EVT");

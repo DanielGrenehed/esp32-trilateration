@@ -3,13 +3,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "uart.h"
 #include "bluetooth.h"
 #include "wifi.h"
 #include "str.h"
 
 #define LED_PIN GPIO_NUM_22
-static int should_log_closest_bt_device = 0;
 
 void config_led() {
     gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
@@ -32,17 +32,17 @@ static void on_parse_hex_command(const char* arguments) {
     if (success != HEX_PARSE_BUFFER_SIZE*2) ESP_LOGE(TAG, "Failed to read %d nibbles", HEX_PARSE_BUFFER_SIZE*2);
 }
 
-static const char* BT_COMMAND = "bt";
-static const char* WF_COMMAND = "wf";
-static const char* TOGGLE_LED_COMMAND = "tled";
-static const char* PARSE_HEX_COMMAND = "hex";
+static void restart() {
+    esp_restart();
+}
 
 static void callback(const char* command) {
     int c_end;
-    if (str_starts_with(command, TOGGLE_LED_COMMAND) > -1) toggle_led();
-    else if ((c_end = str_starts_with(command, BT_COMMAND)) > -1) on_bt_command(command+c_end);
-    else if ((c_end = str_starts_with(command, WF_COMMAND)) > -1) on_wf_command(command+c_end);
-    else if ((c_end = str_starts_with(command, PARSE_HEX_COMMAND)) > -1) on_parse_hex_command(command+c_end);
+    if (str_starts_with(command, "tled") > -1) toggle_led();
+    else if ((c_end = str_starts_with(command, "bt")) > -1) on_bt_command(command+c_end);
+    else if ((c_end = str_starts_with(command, "wf")) > -1) on_wifi_command(command+c_end);
+    else if ((c_end = str_starts_with(command, "hex")) > -1) on_parse_hex_command(command+c_end);
+    else if (str_starts_with(command, "reset")) restart();
     else {ESP_LOGI(TAG, "Unknown command: %s",command);}
 
 }
@@ -53,5 +53,6 @@ void app_main(void) {
     uart_cli_set_command_callback(callback);
     xTaskCreate(uart_cli_task, "uart_cli_task", TRILAT_TASK_STACK_SIZE, NULL, 10, NULL);
     ble_scanner_task();
+    wifi_init();
     ESP_LOGI(TAG, "Function completed!");
 }

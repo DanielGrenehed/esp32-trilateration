@@ -11,7 +11,7 @@ int str_are_equal(const char*, const char*);
 
 int str_are_equal_to(const char*, const char*, int);
 
-void str_copy(const char*, char* , int);
+void str_copy(const char* from, char* to, int num);
 
 int str_parse_hex(const char*, int, char* );
 

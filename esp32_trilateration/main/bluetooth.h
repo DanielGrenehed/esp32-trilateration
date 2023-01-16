@@ -3,6 +3,7 @@
 
 // Number of bytes in bluetooth mac address
 #define BT_MAC_LENGTH 6
+#define SCAN_DEVICE_STRUCT_SIZE (2+(1*BT_MAC_LENGTH))
 
 struct bt_scan_device_t{
     int8_t rssi, addr_type;
@@ -10,6 +11,10 @@ struct bt_scan_device_t{
 };
 
 void set_bt_device_found_callback(void (*callback)(struct bt_scan_device_t));
+
+void set_bt_log_output(void (*callback)(const char*, int, int));
+
+void bt_send_scan_buffer(void (*destination)(const char*, int));
 
 void ble_scanner_task();
 

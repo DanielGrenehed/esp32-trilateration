@@ -8,22 +8,11 @@
 #include "bluetooth.h"
 #include "wifi.h"
 #include "str.h"
+#include "led.h"
 #include "websocket.h"
-
-#define LED_PIN GPIO_NUM_22
-
-void config_led() {
-    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_pull_mode(LED_PIN, GPIO_PULLDOWN_ENABLE);
-}
+#include "store.h"
 
 static const char * TAG = "MAIN";
-static uint32_t led_on = 0;
-
-static void toggle_led() {
-    led_on = !led_on;
-    gpio_set_level(GPIO_NUM_22, led_on);
-}
 
 #define HEX_PARSE_BUFFER_SIZE 6
 static char parse_hex[HEX_PARSE_BUFFER_SIZE];
@@ -33,28 +22,51 @@ static void on_parse_hex_command(const char* arguments) {
     if (success != HEX_PARSE_BUFFER_SIZE*2) ESP_LOGE(TAG, "Failed to read %d nibbles", HEX_PARSE_BUFFER_SIZE*2);
 }
 
-static void restart() {
-    esp_restart();
+static void send_data() {
+    bt_send_scan_buffer(ws_send_blob);
+    /*
+        get data from scan
+        send data over websocket
+    */
 }
 
-static void callback(const char* command) {
+static void process_command(const char* command) {
     int c_end;
-    if (str_starts_with(command, "tled") > -1) toggle_led();
-    else if ((c_end = str_starts_with(command, "bt")) > -1) on_bt_command(command+c_end);
-    else if ((c_end = str_starts_with(command, "wf")) > -1) on_wifi_command(command+c_end);
-    else if ((c_end = str_starts_with(command, "hex")) > -1) on_parse_hex_command(command+c_end);
-    else if ((c_end = str_starts_with(command, "ws")) > -1) on_ws_command(command+c_end);
-    else if (str_starts_with(command, "reset") > -1) restart();
+    if ((c_end = str_starts_with(command, "led")) > -1) {on_led_command(command+c_end);}
+    else if ((c_end = str_starts_with(command, "bt")) > -1) {on_bt_command(command+c_end);}
+    else if ((c_end = str_starts_with(command, "wf")) > -1) {on_wifi_command(command+c_end);}
+    else if ((c_end = str_starts_with(command, "hex")) > -1) {on_parse_hex_command(command+c_end);}
+    else if ((c_end = str_starts_with(command, "ws")) > -1) {on_ws_command(command+c_end);}
+    else if (str_starts_with(command, "sd") > -1) {send_data();}
+    else if (str_starts_with(command, "reset") > -1) {esp_restart();}
     else ESP_LOGI(TAG, "Unknown command: %s",command);
-
 }
+
+static const char ws_handshake_initializer[8] = {0xde, 0xad, 0xbe, 0xaf, 0xde, 0xca, 0xfe, 0x00};
+static void send_handshake() {
+    ws_send_blob(ws_handshake_initializer, 7);
+}
+
+static void ws_handshake_on_connect() {
+    send_handshake();
+}
+
 
 void app_main(void) {
-    config_led();
+    store_init();
+    led_init();
 
-    uart_cli_set_command_callback(callback);
+    ws_set_on_message_callback(process_command);
+    ws_set_on_connect_callback(ws_handshake_on_connect);
+    
+    set_wifi_log_output(ws_send);
+    set_wifi_connect_callback(ws_connect);
+    set_bt_log_output(ws_send);
+
+    uart_cli_set_command_callback(process_command);
     xTaskCreate(uart_cli_task, "uart_cli_task", TRILAT_TASK_STACK_SIZE, NULL, 10, NULL);
+    
     ble_scanner_task();
+    
     wifi_init();
-    ESP_LOGI(TAG, "Function completed!");
 }

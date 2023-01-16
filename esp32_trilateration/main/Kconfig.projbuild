@@ -65,4 +65,10 @@ menu "ESP32 Trilateration Configuration"
         default 256
         help
             Defines the maximum size of WebSocket URI.
+
+    config TRILAT_LED_PIN
+        int "Gpio pin of LED"
+        default 22
+        help
+            Defines the pin used for debugging and hardware output
 endmenu

@@ -1,17 +1,23 @@
 #include "esp_wifi.h"
 #include "wifi.h"
 #include "str.h"
+#include "store.h"
 #include "esp_log.h"
 #include "esp_event.h"
+#include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 
 #define WIFI_MAXIMUM_RETRY CONFIG_TRILAT_WIFI_MAXIMUM_RETRY
+#define WIFI_MAX_SSID_LENGTH 32
+#define WIFI_MAX_PASSWORD_LENGHT 64
+#define WIFI_MAC_LENGTH 6
+
 static const char * TAG = "WIFI";
 static int wifi_connected = 0, wifi_active = 0;
 
-static wifi_config_t wifi_config = {.sta = {.ssid = "", .password = "",}};
+static wifi_config_t wifi_config = {.sta = {.ssid = "", .password = "",},};
 
 static void (*on_connect_callback)(void*) = NULL;
 void set_wifi_connect_callback(void (*callback)(void*)) {
@@ -21,6 +27,11 @@ void set_wifi_connect_callback(void (*callback)(void*)) {
 static void (*on_disconnect_callback)(void*) = NULL;
 void set_wifi_disconnect_callback(void (*callback)(void*)) {
     on_disconnect_callback = callback;
+}
+
+static void (*wifi_log_output)(const char*, int, int) = NULL;
+void set_wifi_log_output(void (*callback)(const char*, int, int)) {
+    wifi_log_output = callback;
 }
 
 int is_wifi_connected() {
@@ -105,17 +116,44 @@ int wifi_init() {
 
     esp_wifi_set_mode(WIFI_MODE_STA);
     
+    /*
+        Get stored wifi ssid and password and try to connect
+    */
+    if (store_get_str("wf_ap", (char*)wifi_config.sta.ssid, WIFI_MAX_SSID_LENGTH) &&
+        store_get_str("wf_pw", (char*)wifi_config.sta.password, WIFI_MAX_PASSWORD_LENGHT)) wifi_connect();
     
     ESP_LOGI(TAG, "wifi_init_sta finished.");
     return 1;
 }
 
+static void send_info() {
+    if (wifi_log_output!=NULL) {
+        wifi_log_output((char*)wifi_config.sta.ssid, WIFI_MAX_SSID_LENGTH, 1);
+    } else {
+        ESP_LOGI(TAG, "Wifi ap: %s", wifi_config.sta.ssid);
+    }
+}
+
+static void send_mac() {
+    
+    if (wifi_log_output!=NULL) {
+        char body[WIFI_MAC_LENGTH+1] = "w";
+        esp_read_mac((uint8_t*)body+1, ESP_MAC_WIFI_STA);
+        wifi_log_output(body, WIFI_MAC_LENGTH+1, 0);
+    }
+}
+
 static void set_ssid(const char *ssid) {
-    str_copy(ssid, (char*)wifi_config.sta.ssid, 32);
+    str_copy(ssid, (char*)wifi_config.sta.ssid, WIFI_MAX_SSID_LENGTH);
 }
 
 static void set_password(const char *password) {
-    str_copy(password, (char*)wifi_config.sta.password, 64);
+    str_copy(password, (char*)wifi_config.sta.password, WIFI_MAX_PASSWORD_LENGHT);
+}
+
+static void save_config() {
+    store_set_str("wf_ap", (const char*) wifi_config.sta.ssid);
+    store_set_str("wf_pw", (const char*) wifi_config.sta.password); 
 }
 
 void on_wifi_command(const char *arguments) {
@@ -124,5 +162,8 @@ void on_wifi_command(const char *arguments) {
     else if (str_starts_with(arguments, "d") > -1) wifi_disconnect();
     else if ((pos = str_starts_with(arguments, "a")) > -1) set_ssid(arguments+pos+1);
     else if ((pos = str_starts_with(arguments, "p")) > -1) set_password(arguments+pos+1);
+    else if (str_starts_with(arguments, "s") > -1) save_config();
+    else if (str_starts_with(arguments, "i") > -1) send_info();
+    else if (str_starts_with(arguments, "m") > -1) send_mac();
     else ESP_LOGW(TAG, "unknown argument: %s", arguments);
 }

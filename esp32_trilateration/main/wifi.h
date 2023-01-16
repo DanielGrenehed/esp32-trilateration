@@ -3,6 +3,7 @@
 
 void set_wifi_connect_callback(void (*callback)(void*));
 void set_wifi_disconnect_callback(void (*callback)(void*));
+void set_wifi_log_output(void (*callback)(const char*, int, int));
 
 int wifi_init();
 int is_wifi_connected();

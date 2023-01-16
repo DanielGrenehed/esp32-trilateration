@@ -5,6 +5,7 @@
 #include "esp_gatt_defs.h"
 #include "esp_bt_main.h"
 #include "esp_bt_defs.h"
+#include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_log.h"
 #include "bluetooth.h"
@@ -21,6 +22,11 @@ static int bt_verbose_log = 0;
 
 void set_bt_device_found_callback(void (*callback)(struct bt_scan_device_t)) {
     device_found_callback = callback;
+}
+
+static void (*bt_log_output)(const char*, int, int) = NULL;
+void set_bt_log_output(void (*callback)(const char*, int, int)) {
+    bt_log_output = callback;
 }
 
 static void log_bt_device(struct bt_scan_device_t *device) {
@@ -178,6 +184,14 @@ static void clear_scan_buffer() {
     }
 }
 
+void bt_send_scan_buffer(void (*destination)(const char*, int)) {
+    if (bt_scan_buffer_end == 0) {
+        ESP_LOGW(TAG, "No scan data collected");
+        return;
+    }
+    destination(bt_scan_buffer, bt_scan_buffer_end*SCAN_DEVICE_STRUCT_SIZE);
+}
+
 void ble_scanner_task() {
     clear_scan_buffer();
 
@@ -194,6 +208,14 @@ void ble_scanner_task() {
         ESP_LOGE(TAG, "gap register error: %s", esp_err_to_name(status));
     }
     set_bt_device_found_callback(on_bt_device_found);
+}
+
+static void send_mac() {
+    if (bt_log_output!=NULL) {
+        char body[BT_MAC_LENGTH+1] = "b";
+        esp_read_mac((uint8_t*)body+1, ESP_MAC_BT);
+        bt_log_output(body, BT_MAC_LENGTH+1, 0);
+    }
 }
 
 void on_bt_command(const char * arguments) {
@@ -219,6 +241,7 @@ void on_bt_command(const char * arguments) {
     else if (str_starts_with(arguments, "c") > -1) { // print closest device info
         int closest = get_closest_device_buffer_index();
         log_bt_device(&bt_scan_buffer[closest]);
-    } else ESP_LOGW(TAG, "Unknown argument: %s", arguments);
+    } else if (str_starts_with(arguments, "m") > -1) send_mac(); 
+    else ESP_LOGW(TAG, "Unknown argument: %s", arguments);
 }
 

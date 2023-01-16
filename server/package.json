@@ -1,0 +1,16 @@
+{
+  "name": "trilat_server",
+  "version": "1.0.0",
+  "description": "Trilaterartion server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Daniel Amos Grenenhed",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.12.0"
+  },
+  "type": "module"
+}

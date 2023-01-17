@@ -1,6 +1,6 @@
 import {WebSocketServer} from 'ws';
-
 import * as fs from 'fs';
+import * as bf from './buffer.js';
 
 const config_file = 'config.json';
 let raw_config = fs.readFileSync(config_file);
@@ -30,39 +30,18 @@ function create_scan_device_array(buffer) {
     return output;
 }
 
-function construct_string_from_buffer(buffer) {
-    let string = "";
-    for (let i = 0; i < buffer.length; i++) string += String.fromCharCode(buffer[i]);
-    return string;
-}
-
-function match(a, b) {
-    for (let i = 0; i < a.length && i < b.length; i++) {
-        if (a[i] != b[i]) return false;
-    }
-    return true;
-}
-
 let device_clients = [];
 
-function bufferToHexString(buffer) {
-    var output = "";
-    for (var i = 0; i < buffer.length; i++) {
-        output += buffer[i].toString(16);
-    }
-    return output;
-}
-
 function setDeviceProperties(device) {
-    let wf_mac_str = bufferToHexString(device.wf_mac);
+    let wf_mac_str = bf.bufferToHexString(device.wf_mac);
     device.active = config.devices[wf_mac_str].active;
     device.alias = config.devices[wf_mac_str].alias;
     device.position = config.devices[wf_mac_str].position;
 }
 
 function createDefaultConfig(device) {
-    config.devices[bufferToHexString(device.wf_mac)] = {
-                "bt" : bufferToHexString(device.bt_mac),
+    config.devices[bf.bufferToHexString(device.wf_mac)] = {
+                "bt" : bf.bufferToHexString(device.bt_mac),
                 "active" : false,
                 "alias" : "",
                 "position" : {"x":0, "y":0}
@@ -81,9 +60,9 @@ function pushDeviceToList(device) {
                     if bt_mac matches
                         load properties
         */
-        let wf_mac_str = bufferToHexString(device.wf_mac)
+        let wf_mac_str = bf.bufferToHexString(device.wf_mac)
         if (config.devices.hasOwnProperty(wf_mac_str)) {
-            if (config.devices[wf_mac_str].bt == bufferToHexString(device.bt_mac)) {
+            if (config.devices[wf_mac_str].bt == bf.bufferToHexString(device.bt_mac)) {
                 setDeviceProperties(device);
                 device_clients.push(device);
                 if (device.active) console.log("%s Has connected!",device.alias);
@@ -133,27 +112,27 @@ class DeviceSocket {
                     this.setBluetoothMac(data.slice(1,7));
                 }
             } else console.log(data);
-        } else console.log(construct_string_from_buffer(data));
+        } else console.log(bf.bufferToString(data));
     }
 
     configureDevice = function() {
-        this.socket.send("btscan");
-        this.socket.send("btm");
-        this.socket.send("wfm");
+        this.socket.send("btscan"); // start bluetooth scanner
+        this.socket.send("btm");    // request bluetooth MAC
+        this.socket.send("wfm");    // request WiFi MAC
     }
 
     setBluetoothMac = function(mac) {
         if (this.bt_mac === undefined || this.bt_mac === null) {
             this.bt_mac = mac;
             this.addDeviceIfValid();
-        } else if (!match(this.bt_mac, mac)) console.log("Trying to overwrite bt_mac");
+        } else if (!bf.buffersDoesMatch(this.bt_mac, mac)) console.log("Trying to overwrite bt_mac");
     }
     
     setWiFiMac = function(mac) {
         if (this.wf_mac === undefined || this.wf_mac === null) {
             this.wf_mac = mac;
             this.addDeviceIfValid();
-        } else if (!match(this.wf_mac, mac)) console.log("Trying to overwrite wf_mac");
+        } else if (!bf.buffersDoesMatch(this.wf_mac, mac)) console.log("Trying to overwrite wf_mac");
     }
 
     addDeviceIfValid = function() {
@@ -173,9 +152,9 @@ wss.on('connection', function connection(ws) {
         if (ws.hand_is_shaken) return;        
 
         if (isBinary) {
-            if (data.length == 7) if (match(data, device_handshake_identifier)) new DeviceSocket(ws);
+            if (data.length == 7) if (bf.buffersDoesMatch(data, device_handshake_identifier)) new DeviceSocket(ws);
             else console.log(data);
-        } else console.log(construct_string_from_buffer(data));
+        } else console.log(bf.bufferToString(data));
     });
 });
 

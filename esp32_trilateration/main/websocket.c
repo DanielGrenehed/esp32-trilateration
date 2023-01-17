@@ -83,15 +83,21 @@ static void set_uri(const char *uri) {
 }
 
 void ws_connect() {
+    websocket_client = esp_websocket_client_init(&websocket_config);
     if (!uri_is_set) {
-        store_get_str("ws_uri", ws_uri, WEBSOCKET_URI_MAX_LENGTH);
-        websocket_config.uri = ws_uri;
-        uri_is_set = 1;
+        if (store_get_str("ws_uri", ws_uri, WEBSOCKET_URI_MAX_LENGTH)) {
+            websocket_config.uri = ws_uri;
+            uri_is_set = 1;
+        }
     }
     if (websocket_config.uri == NULL) return;
-    websocket_client = esp_websocket_client_init(&websocket_config);
+    else {
+        if (esp_websocket_client_set_uri(websocket_client, ws_uri)!= ESP_OK) return;
+    }
+    
+    ESP_LOGI(TAG, "client created");
     esp_websocket_register_events(websocket_client, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void*)websocket_client);
-    esp_websocket_client_start(websocket_client);
+    ESP_ERROR_CHECK(esp_websocket_client_start(websocket_client));
 }
 
 void ws_disconnect() {

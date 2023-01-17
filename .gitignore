@@ -5,3 +5,4 @@ build
 *.class
 managed_components
 node_modules
+server/config.json

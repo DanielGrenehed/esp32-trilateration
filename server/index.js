@@ -1,31 +1,48 @@
 import {WebSocketServer} from 'ws';
-const wss = new WebSocketServer({port:80});
 import * as bf from './buffer.js';
 import * as device from './device.js';
+import * as cf from './config.js';
+import * as sc from './scanner.js';
 
-wss.on('connection', function connection(ws) {
-    //console.log("Connected");
-    ws.isAlive = true; 
-    ws.on('pong', function heartbeat() { this.isAlive = true; });
+const device_socket_server = new WebSocketServer({port:typeof cf.getSubtree('device_port') === 'number' ? cf.getSubtree('device_port') : 80});
+const controller_socket_server = new WebSocketServer({port:typeof cf.getSubtree('controller_port') === 'number' ? cf.getSubtree('controller_port') : 81});
+const viewer_socket_server = new WebSocketServer({port:typeof cf.getSubtree('view_port') === 'number' ? cf.getSubtree('view_port') : 82});
+
+function handleDeviceConnect(ws) {
     ws.on("message", function message(data, isBinary) {
-        if (ws.hand_is_shaken) return;        
-
+        if (ws.hand_is_shaken) return;
         if (isBinary) {
-            if (data.length == 7) device.evaluateConnection(data, ws);//if (bf.buffersDoesMatch(data, device_handshake_identifier)) new DeviceSocket(ws);
+            if (data.length == 7) device.evaluateConnection(data, ws);
             else console.log(data);
         } else console.log(bf.bufferToString(data));
     });
-});
+}
 
-const interval = setInterval(function ping() {
-    wss.clients.forEach(function each(ws) {
-        if (ws.isAlive === false) return ws.terminate();
-        ws.isAlive = false;
-        ws.ping();
+function handleViewConnect(ws) {
+    console.log("View connected");
+}
+
+function handleControllerConnect(ws) {
+    console.lot("Controler connected");
+}
+
+function setupServerWebSocket(server, handler_function) {
+    server.on('connection', (ws) => {
+        ws.isAlive = true;
+        ws.on('pong', function() {this.isAlive=true;});
+        handler_function(ws);
     });
-}, 30000);
+    server.interval = setInterval(() => {
+        server.clients.forEach((ws) => {
+            if (ws.isAlive === false) return ws.terminate();
+            ws.isAlive = false;
+            ws.ping();
+        });
+    }, 30000);
+    server.on('close', ()=>{clearInterval(server.interval);});
+}
 
-wss.on('close', function close() {
-    clearInterval(interval);
-});
 
+setupServerWebSocket(device_socket_server, handleDeviceConnect);
+setupServerWebSocket(viewer_socket_server, handleViewConnect);
+setupServerWebSocket(controller_socket_server, handleControllerConnect);

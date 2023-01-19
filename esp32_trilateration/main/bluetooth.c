@@ -16,8 +16,8 @@ static const char* TAG = "BT";
 static void (*device_found_callback)(struct bt_scan_device_t) = NULL;
 
 static char bt_wl_mac[BT_MAC_LENGTH];
-enum bt_states {scanning, scanning_closest, scanning_whitelist};
-static enum bt_states bt_state = scanning;
+enum bt_states {off, scanning, scanning_closest, scanning_whitelist, advertising};
+static enum bt_states bt_state = off;
 static int bt_verbose_log = 0;
 
 void set_bt_device_found_callback(void (*callback)(struct bt_scan_device_t)) {
@@ -141,7 +141,28 @@ static void bt_scan_result_evt_callback(struct ble_scan_result_evt_param scan_re
             break;
     } 
 }
- 
+
+
+ static int scan_params_set = 0;
+
+static esp_ble_scan_params_t ble_scan_params = {
+        .scan_type          = BLE_SCAN_TYPE_PASSIVE,
+        .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
+        .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
+        .scan_interval      = 0x50,
+        .scan_window        = 0x30,
+        .scan_duplicate     = BLE_SCAN_DUPLICATE_DISABLE
+};
+
+static esp_ble_adv_params_t ble_adv_params = {
+    .adv_int_min        = 0x20,
+    .adv_int_max        = 0x40,
+    .adv_type           = ADV_TYPE_IND,
+    .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
+    .channel_map        = ADV_CHNL_ALL,
+    .adv_filter_policy  = ADV_FILTER_ALLOW_SCAN_ANY_CON_WLST,
+};
+
 static void esp_gap_callback(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     esp_err_t err;
     switch (event) {
@@ -161,21 +182,18 @@ static void esp_gap_callback(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_
             else 
                 ESP_LOGI(TAG, "Stopped scan successfully");
             break;
+        case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
+            esp_ble_gap_start_advertising(&ble_adv_params);
+            break;
+        case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+            if ((err = param->adv_start_cmpl.status) != ESP_BT_STATUS_SUCCESS) 
+                ESP_LOGE(TAG, "Advertising start failed: %s", esp_err_to_name(err)); 
         default: 
             break;
     }
 }
 
-static int scan_params_set = 0;
 
-static esp_ble_scan_params_t ble_scan_params = {
-        .scan_type          = BLE_SCAN_TYPE_PASSIVE,
-        .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
-        .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
-        .scan_interval      = 0x50,
-        .scan_window        = 0x30,
-        .scan_duplicate     = BLE_SCAN_DUPLICATE_DISABLE
-};
 
 static void clear_scan_buffer() {
     for (int i = 0; i < BT_SCAN_BUFFER_SIZE; i++) {
@@ -211,37 +229,67 @@ void ble_scanner_task() {
 }
 
 static void send_mac() {
-    if (bt_log_output!=NULL) {
-        char body[BT_MAC_LENGTH+1] = "b";
-        esp_read_mac((uint8_t*)body+1, ESP_MAC_BT);
-        bt_log_output(body, BT_MAC_LENGTH+1, 0);
+    char body[BT_MAC_LENGTH+1] = "b";
+    esp_read_mac((uint8_t*)body+1, ESP_MAC_BT);
+    if (bt_log_output != NULL) bt_log_output(body, BT_MAC_LENGTH+1, 0);
+    ESP_LOG_BUFFER_HEX(TAG, body+1, BT_MAC_LENGTH);
+}
+static void stop_scan() {
+    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist) {
+        esp_ble_gap_stop_scanning();
+        bt_state = off;
     }
+}
+
+static void stop_advertising() {
+    if (bt_state == advertising) {
+        esp_ble_gap_stop_advertising();
+        bt_state = off;
+    }
+}
+
+static void start_advertising() {
+    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist) stop_scan();
+    if (bt_state == off) {
+        esp_ble_gap_start_advertising(&ble_adv_params);
+        bt_state = advertising;
+    }
+}
+
+static void start_scan() {
+    if (bt_state == advertising) stop_advertising();
+    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist) return;
+    if (scan_params_set) esp_ble_gap_start_scanning(0);
+    else {
+        esp_ble_gap_set_scan_params(&ble_scan_params); 
+        scan_params_set = 1;
+    }
+}
+
+static void whitelist_mac(const char* arguments) {
+    int success = str_parse_hex(arguments, BT_MAC_LENGTH*2, bt_wl_mac);
+    if (success == BT_MAC_LENGTH*2) bt_state = scanning_whitelist;
+    else ESP_LOGW(TAG, "Could not get mac from: %s", arguments);
+}
+
+static void log_closest_device() {
+    int closest = get_closest_device_buffer_index();
+        log_bt_device(&bt_scan_buffer[closest]);
 }
 
 void on_bt_command(const char * arguments) {
     int pos;
-    if (str_starts_with(arguments, "scan") > -1) {
-        if (scan_params_set) esp_ble_gap_start_scanning(0);
-        else {
-            esp_ble_gap_set_scan_params(&ble_scan_params); 
-            scan_params_set = 1;
-        }
-    } 
-    else if (str_starts_with(arguments, "noscan") > -1) esp_ble_gap_stop_scanning();
-    else if ((pos = str_starts_with(arguments, "sw")) > -1) {
-        int success = str_parse_hex(arguments, BT_MAC_LENGTH*2, bt_wl_mac);
-        if (success == BT_MAC_LENGTH*2) bt_state = scanning_whitelist;
-        else ESP_LOGW(TAG, "Could not get mac from: %s", arguments+pos);
-    } 
+    if (str_starts_with(arguments, "scan") > -1) start_scan();
+    else if (str_starts_with(arguments, "noscan") > -1) stop_scan();
+    else if (str_starts_with(arguments, "adv") > -1) start_advertising();
+    else if (str_starts_with(arguments, "noadv") > -1) stop_advertising();
+    else if ((pos = str_starts_with(arguments, "sw")) > -1) whitelist_mac(arguments+pos); 
     else if (str_starts_with(arguments, "b") > -1) show_scan_buffer();
     else if (str_starts_with(arguments, "lv") > -1) bt_verbose_log = 1; // log verbose
     else if (str_starts_with(arguments, "ll") > -1) bt_verbose_log = 0;// log less
-    else if (str_starts_with(arguments, "sn") > -1) bt_state=scanning;
     else if ((pos = str_starts_with(arguments, "srf")) > -1) bt_rssi_filter = str_parse_int(arguments+pos);
-    else if (str_starts_with(arguments, "c") > -1) { // print closest device info
-        int closest = get_closest_device_buffer_index();
-        log_bt_device(&bt_scan_buffer[closest]);
-    } else if (str_starts_with(arguments, "m") > -1) send_mac(); 
+    else if (str_starts_with(arguments, "c") > -1) log_closest_device();
+    else if (str_starts_with(arguments, "m") > -1) send_mac(); 
     else ESP_LOGW(TAG, "Unknown argument: %s", arguments);
 }
 

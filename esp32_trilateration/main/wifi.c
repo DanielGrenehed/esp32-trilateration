@@ -135,12 +135,12 @@ static void send_info() {
 }
 
 static void send_mac() {
-    
+    char body[WIFI_MAC_LENGTH+1] = "w";
+    esp_read_mac((uint8_t*)body+1, ESP_MAC_WIFI_STA);
     if (wifi_log_output!=NULL) {
-        char body[WIFI_MAC_LENGTH+1] = "w";
-        esp_read_mac((uint8_t*)body+1, ESP_MAC_WIFI_STA);
         wifi_log_output(body, WIFI_MAC_LENGTH+1, 0);
     }
+    ESP_LOG_BUFFER_HEX(TAG, body+1, WIFI_MAC_LENGTH);
 }
 
 static void set_ssid(const char *ssid) {

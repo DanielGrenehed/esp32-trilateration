@@ -83,6 +83,7 @@ static void set_uri(const char *uri) {
 }
 
 void ws_connect() {
+    if (ws_is_connected()) return;
     websocket_client = esp_websocket_client_init(&websocket_config);
     if (!uri_is_set) {
         if (store_get_str("ws_uri", ws_uri, WEBSOCKET_URI_MAX_LENGTH)) {

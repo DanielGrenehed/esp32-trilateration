@@ -2,7 +2,7 @@ import {WebSocketServer} from 'ws';
 import * as bf from './buffer.js';
 import * as device from './device.js';
 import * as cf from './config.js';
-import * as sc from './scanner.js';
+import * as vw from './view.js';
 
 const device_socket_server = new WebSocketServer({port:typeof cf.getSubtree('device_port') === 'number' ? cf.getSubtree('device_port') : 80});
 const controller_socket_server = new WebSocketServer({port:typeof cf.getSubtree('controller_port') === 'number' ? cf.getSubtree('controller_port') : 81});
@@ -19,7 +19,8 @@ function handleDeviceConnect(ws) {
 }
 
 function handleViewConnect(ws) {
-    console.log("View connected");
+    //console.log("View connected");
+    vw.connectView(ws);
 }
 
 function handleControllerConnect(ws) {

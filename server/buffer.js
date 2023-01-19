@@ -16,7 +16,9 @@ function buffersDoesMatch(a, b) {
 function bufferToHexString(buffer) {
     var output = "";
     for (var i = 0; i < buffer.length; i++) {
-        output += buffer[i].toString(16);
+        let byte = buffer[i].toString(16);
+        if (byte.length != 2) byte = "0"+byte;
+        output += byte;
     }
     return output;
 }

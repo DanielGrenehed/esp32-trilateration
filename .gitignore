@@ -1,8 +1,9 @@
 
 build
 .vscode
-.DS_Store
+*.DS_Store
 *.class
 managed_components
 node_modules
 server/config.json
+.DS_Store

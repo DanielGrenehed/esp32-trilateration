@@ -8,6 +8,10 @@ function getScanIV() {
     active_devices.forEach((device) => {
         device.scan_device_array.forEach((scan_device) => {
             let mac = bf.bufferToHexString(scan_device.mac);
+            if (mac.length !=12) {
+                console.log("Invalid mac length: %s from %o", mac, scan_device.mac);
+                return;
+            }
             if (iv.hasOwnProperty(mac)) {
                 iv[mac][device.alias] = scan_device.rssi;
             } else {

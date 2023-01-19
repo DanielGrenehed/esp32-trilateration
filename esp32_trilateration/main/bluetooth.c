@@ -238,6 +238,7 @@ static void stop_scan() {
     if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist) {
         esp_ble_gap_stop_scanning();
         bt_state = off;
+        ESP_LOGI(TAG, "Scan stopped");
     }
 }
 
@@ -245,6 +246,7 @@ static void stop_advertising() {
     if (bt_state == advertising) {
         esp_ble_gap_stop_advertising();
         bt_state = off;
+        ESP_LOGI(TAG, "Advertising stopped");
     }
 }
 
@@ -253,6 +255,7 @@ static void start_advertising() {
     if (bt_state == off) {
         esp_ble_gap_start_advertising(&ble_adv_params);
         bt_state = advertising;
+        ESP_LOGI(TAG, "Started advertising");
     }
 }
 
@@ -264,6 +267,8 @@ static void start_scan() {
         esp_ble_gap_set_scan_params(&ble_scan_params); 
         scan_params_set = 1;
     }
+    bt_state = scanning;
+    ESP_LOGI(TAG, "Started scanning");
 }
 
 static void whitelist_mac(const char* arguments) {

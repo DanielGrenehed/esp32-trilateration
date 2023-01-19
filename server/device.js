@@ -26,6 +26,22 @@ function printActiveDevices() {
     });
 }
 
+function listReceiverDevices() {
+    var out = [];
+    device_clients.forEach(function (device) {
+        if (device.active && device.type === "receiver") {out.push(device);}
+    });
+    return out;
+}
+
+function listTransmitterDevices() {
+    var out = [];
+    device_clients.forEach(function (device) {
+        if (device.active && device.type === "transmitter") {out.push(device);}
+    });
+    return out;
+}
+
 function listActiveDevices() {
     var out = [];
     device_clients.forEach((device) => {
@@ -122,7 +138,7 @@ function pushDeviceToList(device) {
                 setDeviceProperties(device);
                 device_clients.push(device);
                 if (device.active) {
-                    printActiveDevices();
+                    //printActiveDevices();
                     console.log("%s Has connected!",device.alias);
                     device.start();
                 }
@@ -227,4 +243,4 @@ function evaluateConnection(data, socket) {
     if (bf.buffersDoesMatch(data, device_handshake_identifier)) new DeviceSocket(socket);
 }
 
-export {evaluateConnection, listActiveDevices, listInactiveDevices, sendToDevice, sendToAllDevices, sendToActiveDevices, sendToInactiveDevices, countActiveDevices, countInactiveDevices};
+export {evaluateConnection, listActiveDevices, listInactiveDevices, sendToDevice, sendToAllDevices, sendToActiveDevices, sendToInactiveDevices, countActiveDevices, countInactiveDevices, listReceiverDevices, listTransmitterDevices};

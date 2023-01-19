@@ -7,3 +7,4 @@ managed_components
 node_modules
 server/config.json
 .DS_Store
+view/config.js

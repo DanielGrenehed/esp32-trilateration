@@ -4,7 +4,7 @@ function requestDeviceSetup() {
     ws.send('D');
 }
 function requestData() {
-    ws.send('T');
+    ws.send('I');
 }
 
 function onData(data) {

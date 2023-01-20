@@ -1,4 +1,4 @@
-import * as dev from './device.js';
+import * as dev from './device_handler.js';
 import * as bf from './buffer.js';
 
 
@@ -6,17 +6,16 @@ function getScanIV() {
     const active_devices = dev.listReceiverDevices();
     let iv = {};
     active_devices.forEach((device) => {
-        device.scan_device_array.forEach((scan_device) => {
-            let mac = bf.bufferToHexString(scan_device.mac);
-            if (mac.length !=12) {
-                console.log("Invalid mac length: %s from %o", mac, scan_device.mac);
+        device.alien.constructIV().forEach((scan_device) => {
+            if (scan_device.mac.length !=12) {
+                console.log("Invalid mac length: %d from %s", scan_device.mac.length, scan_device.mac);
                 return;
             }
-            if (iv.hasOwnProperty(mac)) {
-                iv[mac][device.alias] = scan_device.rssi;
+            if (iv.hasOwnProperty(scan_device.mac)) {
+                iv[scan_device.mac][device.alias] = scan_device.rssi;
             } else {
-                iv[mac] = {};
-                iv[mac][device.alias] = scan_device.rssi;
+                iv[scan_device.mac] = {};
+                iv[scan_device.mac][device.alias] = scan_device.rssi;
             }
         });
     });
@@ -28,19 +27,18 @@ function getTransmittersScanIV() {
     const transmitters = dev.listTransmitterDevices();
     let iv = {};
     receivers.forEach((device) => {
-        device.scan_device_array.forEach((scan_device) => {
-            let mac = bf.bufferToHexString(scan_device.mac)
+        device.alien.constructIV().forEach((scan_device) => {
             transmitters.forEach((transmitter) => {
-                if (bf.buffersDoesMatch(scan_device.mac, transmitter.bt_mac)) {
-                    if (mac.length !=12) {
-                        console.log("Invalid mac length: %s from %o", mac, scan_device.mac);
+                if (scan_device.mac == transmitter.bt_mac) {
+                    if (scan_device.mac.length != 12) {
+                        console.log("Invalid mac length: %i from %s", scan_device.mac.length, scan_device.mac);
                         return;
                     }
-                    if (iv.hasOwnProperty(mac)) {
-                        iv[mac][device.alias] = scan_device.rssi;
+                    if (iv.hasOwnProperty(scan_device.mac)) {
+                        iv[scan_device.mac][device.alias] = scan_device.rssi;
                     } else {
-                        iv[mac] = {};
-                        iv[mac][device.alias] = scan_device.rssi;
+                        iv[scan_device.mac] = {};
+                        iv[scan_device.mac][device.alias] = scan_device.rssi;
                     }
                 }
             });

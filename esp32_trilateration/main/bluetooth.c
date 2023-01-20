@@ -222,7 +222,8 @@ void bt_send_scan_buffer(void (*destination)(const char*, int)) {
         ESP_LOGW(TAG, "No scan data collected");
         return;
     }
-    destination(bt_scan_buffer, bt_scan_buffer_end*SCAN_DEVICE_STRUCT_SIZE);
+    destination((const char*)bt_scan_buffer, bt_scan_buffer_end*SCAN_DEVICE_STRUCT_SIZE);
+    clear_scan_buffer();
 }
 
 void ble_scanner_task() {

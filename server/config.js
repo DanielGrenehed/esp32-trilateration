@@ -19,5 +19,14 @@ function setSubtree(key, subtree) {
     config[key] = subtree;
 }
 
+function getValue(subtree, default_v) {
+    return typeof getSubtree(subtree) === typeof default_v ? getSubtree(subtree) : default_v;
+}
 
-export {updateConfig, getSubtree, setSubtree};
+function refresh() {
+    raw_config = fs.readFileSync(config_file);
+    config = JSON.parse(raw_config);
+}
+
+
+export {updateConfig, getSubtree, setSubtree, getValue, refresh};

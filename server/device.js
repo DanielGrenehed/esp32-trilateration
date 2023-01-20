@@ -1,10 +1,12 @@
 import * as bf from './buffer.js';
 import * as cf from './config.js';
+import * as dh from './device_handler.js';
+import * as al from './alien.js';
 
-const scan_request_interval_ms = typeof cf.getSubtree('scanreq_i') === 'number' ? cf.getSubtree('scanreq_i'):1000;
+const scan_request_interval_ms = cf.getValue('scanreq_i',1000);
 
 function construct_scan_device(buffer_slice) {
-    var output = {mac:buffer_slice.slice(2, 8), rssi:(buffer_slice[0]<<24>>24), flags:buffer_slice[1]};
+    var output = {mac:bf.bufferToHexString(buffer_slice.slice(2, 8)), rssi:(buffer_slice[0]<<24>>24), flags:buffer_slice[1]};
     //console.log("%o, %s", output.mac, bf.bufferToHexString(output.mac));
     return output;
 }
@@ -18,194 +20,50 @@ function create_scan_device_array(buffer) {
     return output;
 }
 
-let device_clients = [];
-
-function printActiveDevices() {
-    device_clients.forEach((device) => {
-        if (device.active) console.log(device.alias);
-    });
-}
-
-function listReceiverDevices() {
-    var out = [];
-    device_clients.forEach(function (device) {
-        if (device.active && device.type === "Rx") {out.push(device);}
-    });
-    return out;
-}
-
-function listTransmitterDevices() {
-    var out = [];
-    device_clients.forEach(function (device) {
-        if (device.active && device.type === "Tx") {out.push(device);}
-    });
-    return out;
-}
-
-function listActiveDevices() {
-    var out = [];
-    device_clients.forEach((device) => {
-        if (device.active) out.push(device);
-    });
-    return out;
-}
-
-function listInactiveDevices() {
-    var out = [];
-    device_clients.forEach((device) => {
-        if (!device.active) out.push(device);
-    });
-    return out;
-}
-
-
-function sendToDevice(alias, command) {
-    if (alias.length>0) {
-        device_clients.forEach((device) => {
-            if (alias == device.alias) {
-                device.socket.send(command);
-            }
-        });
-    }
-}
-
-function sendToActiveDevices(command) {
-    device_clients.forEach((device) => {
-        if (device.active) device.socket.send(command);
-    });
-}
-
-function sendToInactiveDevices(command) {
-    device_clients.forEach((device) => {
-        if (!device.active) device.socket.send(command);
-    });
-}
-
-function sendToAllDevices(command) {
-    device_clients.forEach((device) => {device.socket.send(command);});
-}
-
-function countActiveDevices() {
-    var out = 0;
-    device_clients.forEach((device) => {if (device.active) out++;});
-    return out;
-}
-
-function countInactiveDevices() {
-    var out =0;
-    device_clients.forEach((device) => {if (!device.active) out++;});
-    return out;
-}
-
-
-function setDeviceProperties(device) {
-    let wf_mac_str = bf.bufferToHexString(device.wf_mac);
-    let config = cf.getSubtree('devices');
-    device.active = config[wf_mac_str].active;
-    device.alias = config[wf_mac_str].alias;
-    device.position = config[wf_mac_str].position;
-    device.type = config[wf_mac_str].type;
-    device.startup = config[wf_mac_str].startup;
-}
-
-function createDefaultConfig(device) {
-    var def = cf.getSubtree('devices')
-    def[bf.bufferToHexString(device.wf_mac)] = {
-                "bt" : bf.bufferToHexString(device.bt_mac),
-                "active" : false,
-                "alias" : "",
-                "position" : {"x":0, "y":0},
-                "type":"Rx",
-                "startup": ["btscan", {"t":scan_request_interval_ms,"c":"sd"}]
-            };
-    cf.setSubtree('devices', def);
-    cf.updateConfig();
-}
-
-function pushDeviceToList(device) {
-    if (!device_clients.includes(device)) {
-        /*
-            Look for device in config, if found, load properties
-            if not found, add to config as found
-
-            in config.devices
-                match wf_mac, 
-                    if bt_mac matches
-                        load properties
-        */
-        const config = cf.getSubtree('devices');
-        let wf_mac_str = bf.bufferToHexString(device.wf_mac)
-        if (config.hasOwnProperty(wf_mac_str)) {
-            if (config[wf_mac_str].bt == bf.bufferToHexString(device.bt_mac)) {
-                setDeviceProperties(device);
-                device_clients.push(device);
-                if (device.active) {
-                    //printActiveDevices();
-                    console.log("%s Has connected!",device.alias);
-                    device.start();
-                }
-            } else {
-                console.log("WiFi and Bluetooth MAC is not correct!");
-                device.socket.close();
-                device.isAlive = false;
-                return;
-            }
-        } else { // new WiFi-MAC, new device
-            createDefaultConfig(device);
-            setDeviceProperties(device);
-            device_clients.push(device);
-        }
-    }
-}
-
-function removeDevice(device) {
-    const index = device_clients.indexOf(device);
-    if (index > -1) device_clients.splice(index, 1);
-    if (device.alias != "" && device.alias != null) {
-        console.log("%s disconnected", device.alias);
-        printActiveDevices();
-    }
-}
-
 const device_handshake_identifier = [0xde, 0xad, 0xbe, 0xaf, 0xde, 0xca, 0xfe];
 
 class DeviceSocket {
     constructor(ws) {
+        var t = this;
         this.socket = ws;
+        this.socket.hand_is_shaken = true;
         this.alias = "";
         this.type = "";
         this.startup = [];
-        this.scan_device_array = [];
+        //this.scan_device_array = [];
+        this.alien = new al.Alien();
         this.schedule = {};
-        var t = this;
-        this.socket.hand_is_shaken = true;
         this.socket.on("message", function(data, isBinary) {t.onMessage(data, isBinary);});
-        this.configureDevice();
+        this.requestID();
         
-        this.socket.on('close', function() {removeDevice(t);});
+        this.socket.on('close', function() {
+            t.clearSchedule();
+            dh.removeDevice(t);
+        });
     }
 
     onMessage = function(data, isBinary) {
         if (isBinary) {
-            if (data.length%8==0) this.scan_device_array = create_scan_device_array(data); 
-            else if (data.length==9 && data[0] == 0x73) {
+            if (data.length%8==0) {
+                let t = this;
+                //console.log("new data");
+                create_scan_device_array(data).forEach(function(device) {
+                    t.alien.process(device);
+                }); 
+            } else if (data.length==9 && data[0] == 0x73) {
                 // direct scanning
                 //console.log('direct scan!');
-            }  
-            else if (data.length == 7) {
-                if (data[0] === 0x77 ) {
-                    //console.log("WiFi MAC: %o",data.slice(1,7));
-                    this.setWiFiMac(data.slice(1,7));
-                }
-                else if (data[0] === 0x62 ) {
-                    //console.log("BT MAC: %o", data.slice(1,7));
-                    this.setBluetoothMac(data.slice(1,7));
-                }
+                let alien = construct_scan_device(data.slice(1,9));
+                //console.log(alien);
+                this.alien.process(alien);
+            } else if (data.length == 7) {
+                if (data[0] === 0x77 ) this.setWiFiMac(bf.bufferToHexString(data.slice(1,7)));
+                else if (data[0] === 0x62 ) this.setBluetoothMac(bf.bufferToHexString(data.slice(1,7)));
             } else console.log(data);
         } else console.log(bf.bufferToString(data));
     }
 
-    configureDevice = function() {
+    requestID = function() {
         this.socket.send("btm");    // request bluetooth MAC
         this.socket.send("wfm");    // request WiFi MAC
     }
@@ -215,28 +73,31 @@ class DeviceSocket {
             this.bt_mac = mac;
             
             this.addDeviceIfValid();
-        } else if (!bf.buffersDoesMatch(this.bt_mac, mac)) console.log("Trying to overwrite bt_mac");
-        else console.log("%o Bluetooth-MAC: (%s) : %s",this.socket._socket.remoteAddress, this.alias, bf.bufferToHexString(mac));
+        } else if (this.bt_mac != mac) console.log("Trying to overwrite bt_mac");
+        else console.log("%o Bluetooth-MAC: (%s) : %s",this.socket._socket.remoteAddress, this.alias, mac);
     }
     
     setWiFiMac = function(mac) {
         if (this.wf_mac === undefined || this.wf_mac === null) {
             this.wf_mac = mac;
             this.addDeviceIfValid();
-        } else if (!bf.buffersDoesMatch(this.wf_mac, mac)) console.log("Trying to overwrite wf_mac");
-        else console.log("%o WiFi-MAC: (%s) : %s", this.socket._socket.remoteAddress, this.alias, bf.bufferToHexString(mac));
+        } else if (this.wf_mac != mac) console.log("Trying to overwrite wf_mac");
+        else console.log("%o WiFi-MAC: (%s) : %s", this.socket._socket.remoteAddress, this.alias, mac);
     }
 
     addDeviceIfValid = function() {
-        if (this.wf_mac != undefined && this.wf_mac != null && this.bt_mac != undefined && this.bt_mac != null) {
-            pushDeviceToList(this);
-        }
+        if (this.wf_mac != undefined && this.wf_mac != null && this.bt_mac != undefined && this.bt_mac != null) dh.pushDeviceToList(this);
     }
 
-    addScheduledCommand(interval_t, command) {
+    scheduleCommand(interval_t, command) {
         let t = this;
         this.schedule[command] = setInterval(function(){t.socket.send(command);}, interval_t);
-        this.socket.on('close', function() {clearInterval(t.schedule[command]);});
+    }
+    
+    clearSchedule() {
+        let schedule = this.schedule;
+        Object.keys(schedule).forEach( function(command) { clearInterval(schedule[command]); });
+        this.schedule = {};
     }
 
     start = function() {
@@ -246,17 +107,19 @@ class DeviceSocket {
                  t.socket.send(command);
             } else if (typeof command === typeof {}) {
                 if (command.hasOwnProperty("t") && command.hasOwnProperty("c")) {
-                    console.log("scheduled command");
-                    t.addScheduledCommand(command.t, command.c);
+                    //console.log("scheduled command");
+                    t.scheduleCommand(command.t, command.c);
                 } 
             }
-            console.log("%s Command: %s", t.alias, command);
+            //console.log("%s Command: %s", t.alias, command);
         }); 
     }
 };
 
 function evaluateConnection(data, socket) {
-    if (bf.buffersDoesMatch(data, device_handshake_identifier)) new DeviceSocket(socket);
+    if (!bf.buffersDoesMatch(data, device_handshake_identifier)) return false;
+    new DeviceSocket(socket);
+    return true;
 }
 
-export {evaluateConnection, listActiveDevices, listInactiveDevices, sendToDevice, sendToAllDevices, sendToActiveDevices, sendToInactiveDevices, countActiveDevices, countInactiveDevices, listReceiverDevices, listTransmitterDevices};
+export {evaluateConnection};

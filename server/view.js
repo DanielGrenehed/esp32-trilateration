@@ -19,7 +19,7 @@ function connectView(connection) {
             }
         } 
     });
-    connection.on('close',function() {/*console.log("View closed");*/});
+    //connection.on('close',function() {console.log("View closed"); });
 }
 
 export {connectView};

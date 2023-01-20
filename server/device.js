@@ -29,7 +29,7 @@ function printActiveDevices() {
 function listReceiverDevices() {
     var out = [];
     device_clients.forEach(function (device) {
-        if (device.active && device.type === "receiver") {out.push(device);}
+        if (device.active && device.type === "Rx") {out.push(device);}
     });
     return out;
 }
@@ -37,7 +37,7 @@ function listReceiverDevices() {
 function listTransmitterDevices() {
     var out = [];
     device_clients.forEach(function (device) {
-        if (device.active && device.type === "transmitter") {out.push(device);}
+        if (device.active && device.type === "Tx") {out.push(device);}
     });
     return out;
 }
@@ -105,6 +105,7 @@ function setDeviceProperties(device) {
     device.alias = config[wf_mac_str].alias;
     device.position = config[wf_mac_str].position;
     device.type = config[wf_mac_str].type;
+    device.startup = config[wf_mac_str].startup;
 }
 
 function createDefaultConfig(device) {
@@ -114,7 +115,8 @@ function createDefaultConfig(device) {
                 "active" : false,
                 "alias" : "",
                 "position" : {"x":0, "y":0},
-                "type":"receiver"
+                "type":"Rx",
+                "startup": ["btscan", {"t":scan_request_interval_ms,"c":"sd"}]
             };
     cf.setSubtree('devices', def);
     cf.updateConfig();
@@ -172,7 +174,9 @@ class DeviceSocket {
         this.socket = ws;
         this.alias = "";
         this.type = "";
+        this.startup = [];
         this.scan_device_array = [];
+        this.schedule = {};
         var t = this;
         this.socket.hand_is_shaken = true;
         this.socket.on("message", function(data, isBinary) {t.onMessage(data, isBinary);});
@@ -183,7 +187,11 @@ class DeviceSocket {
 
     onMessage = function(data, isBinary) {
         if (isBinary) {
-            if (data.length%8==0) this.scan_device_array = create_scan_device_array(data);   
+            if (data.length%8==0) this.scan_device_array = create_scan_device_array(data); 
+            else if (data.length==9 && data[0] == 0x73) {
+                // direct scanning
+                //console.log('direct scan!');
+            }  
             else if (data.length == 7) {
                 if (data[0] === 0x77 ) {
                     //console.log("WiFi MAC: %o",data.slice(1,7));
@@ -225,17 +233,25 @@ class DeviceSocket {
         }
     }
 
+    addScheduledCommand(interval_t, command) {
+        let t = this;
+        this.schedule[command] = setInterval(function(){t.socket.send(command);}, interval_t);
+        this.socket.on('close', function() {clearInterval(t.schedule[command]);});
+    }
+
     start = function() {
-        if (this.type === "receiver") {
-            let t = this;
-            this.interval = setInterval(function(){t.socket.send("sd");}, scan_request_interval_ms);
-            this.socket.on('close', function close() { clearInterval(this.interval); });
-            this.socket.send("btscan");
-        } else if (this.type === "transmitter") {
-            this.socket.send("btadv");
-        } else {
-            console.log("Type not set, unable to start. (%o)", this);
-        }
+        let t = this;
+        this.startup.forEach(function (command) {
+            if (typeof command === "string") {
+                 t.socket.send(command);
+            } else if (typeof command === typeof {}) {
+                if (command.hasOwnProperty("t") && command.hasOwnProperty("c")) {
+                    console.log("scheduled command");
+                    t.addScheduledCommand(command.t, command.c);
+                } 
+            }
+            console.log("%s Command: %s", t.alias, command);
+        }); 
     }
 };
 

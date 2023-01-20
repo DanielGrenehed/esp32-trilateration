@@ -14,19 +14,25 @@
 static const char* TAG = "BT";
 
 static void (*device_found_callback)(struct bt_scan_device_t) = NULL;
+void (*bt_scan_direct_callback)(struct bt_scan_device_t) = NULL;
+static void (*bt_log_output)(const char*, int, int) = NULL;
 
 static char bt_wl_mac[BT_MAC_LENGTH];
-enum bt_states {off, scanning, scanning_closest, scanning_whitelist, advertising};
+enum bt_states {off, scanning, scanning_closest, scanning_whitelist, scanning_direct, advertising};
 static enum bt_states bt_state = off;
 static int bt_verbose_log = 0;
 
-void set_bt_device_found_callback(void (*callback)(struct bt_scan_device_t)) {
+static void set_bt_device_found_callback(void (*callback)(struct bt_scan_device_t)) {
     device_found_callback = callback;
 }
 
-static void (*bt_log_output)(const char*, int, int) = NULL;
+
 void set_bt_log_output(void (*callback)(const char*, int, int)) {
     bt_log_output = callback;
+}
+
+void set_bt_scan_direct_callback(void (*callback)(struct bt_scan_device_t)) {
+    bt_scan_direct_callback = callback;
 }
 
 static void log_bt_device(struct bt_scan_device_t *device) {
@@ -93,6 +99,7 @@ static int get_closest_device_buffer_index() {
     return closest;
 }
 
+
 static void on_bt_device_found(struct bt_scan_device_t device) {
     switch (bt_state) {
         case scanning:
@@ -101,11 +108,17 @@ static void on_bt_device_found(struct bt_scan_device_t device) {
         case scanning_whitelist:
             if (str_are_equal_to(bt_wl_mac, device.mac, BT_MAC_LENGTH-1) > -1) ESP_LOGI(TAG, "Device rssi: %d", device.rssi);
             break;
+        case scanning_direct:
+            if (bt_scan_direct_callback != NULL) {
+                bt_scan_direct_callback(device); 
+            }
+            break;
         default:
             break;
     }
     
 }
+
 
 
 static void bt_device_scan_result_callback(struct ble_scan_result_evt_param param) {
@@ -146,12 +159,12 @@ static void bt_scan_result_evt_callback(struct ble_scan_result_evt_param scan_re
  static int scan_params_set = 0;
 
 static esp_ble_scan_params_t ble_scan_params = {
-        .scan_type          = BLE_SCAN_TYPE_PASSIVE,
-        .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
-        .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
-        .scan_interval      = 0x50,
-        .scan_window        = 0x30,
-        .scan_duplicate     = BLE_SCAN_DUPLICATE_DISABLE
+    .scan_type          = BLE_SCAN_TYPE_PASSIVE,
+    .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
+    .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
+    .scan_interval      = 0x50,
+    .scan_window        = 0x30,
+    .scan_duplicate     = BLE_SCAN_DUPLICATE_DISABLE
 };
 
 static esp_ble_adv_params_t ble_adv_params = {
@@ -200,6 +213,8 @@ static void clear_scan_buffer() {
         bt_scan_buffer[i].addr_type = 0;
         bt_scan_buffer[i].rssi = -127;
     }
+    bt_scan_buffer_end = 0;
+    bt_scan_buffer_ptr = 0;
 }
 
 void bt_send_scan_buffer(void (*destination)(const char*, int)) {
@@ -235,7 +250,7 @@ static void send_mac() {
     ESP_LOG_BUFFER_HEX(TAG, body+1, BT_MAC_LENGTH);
 }
 static void stop_scan() {
-    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist) {
+    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist || bt_state == scanning_direct) {
         esp_ble_gap_stop_scanning();
         bt_state = off;
         ESP_LOGI(TAG, "Scan stopped");
@@ -251,7 +266,7 @@ static void stop_advertising() {
 }
 
 static void start_advertising() {
-    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist) stop_scan();
+    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist || bt_state == scanning_direct) stop_scan();
     if (bt_state == off) {
         esp_ble_gap_start_advertising(&ble_adv_params);
         bt_state = advertising;
@@ -261,7 +276,7 @@ static void start_advertising() {
 
 static void start_scan() {
     if (bt_state == advertising) stop_advertising();
-    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist) return;
+    if (bt_state == scanning || bt_state == scanning_closest || bt_state == scanning_whitelist || bt_state == scanning_direct) return;
     if (scan_params_set) esp_ble_gap_start_scanning(0);
     else {
         esp_ble_gap_set_scan_params(&ble_scan_params); 
@@ -282,16 +297,29 @@ static void log_closest_device() {
         log_bt_device(&bt_scan_buffer[closest]);
 }
 
+static void set_direct_scanning() {
+    start_scan();
+    bt_state= scanning_direct;
+}
+
+static void set_buffer_scanning() {
+    start_scan();
+    bt_state = scanning;
+}
+
 void on_bt_command(const char * arguments) {
     int pos;
     if (str_starts_with(arguments, "scan") > -1) start_scan();
     else if (str_starts_with(arguments, "noscan") > -1) stop_scan();
+    else if (str_starts_with(arguments, "ds") > -1) set_direct_scanning();
+    else if (str_starts_with(arguments, "bs") > -1) set_buffer_scanning();
     else if (str_starts_with(arguments, "adv") > -1) start_advertising();
     else if (str_starts_with(arguments, "noadv") > -1) stop_advertising();
     else if ((pos = str_starts_with(arguments, "sw")) > -1) whitelist_mac(arguments+pos); 
     else if (str_starts_with(arguments, "b") > -1) show_scan_buffer();
     else if (str_starts_with(arguments, "lv") > -1) bt_verbose_log = 1; // log verbose
     else if (str_starts_with(arguments, "ll") > -1) bt_verbose_log = 0;// log less
+    else if (str_starts_with(arguments, "cb") > -1) clear_scan_buffer();
     else if ((pos = str_starts_with(arguments, "srf")) > -1) bt_rssi_filter = str_parse_int(arguments+pos);
     else if (str_starts_with(arguments, "c") > -1) log_closest_device();
     else if (str_starts_with(arguments, "m") > -1) send_mac(); 

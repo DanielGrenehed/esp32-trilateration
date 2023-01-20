@@ -51,6 +51,11 @@ static void ws_handshake_on_connect() {
     send_handshake();
 }
 
+char ds_blob[1+SCAN_DEVICE_STRUCT_SIZE] = "s";
+static void send_direct_scan_on_ws(struct bt_scan_device_t device) {
+    for (int i = 0; i < SCAN_DEVICE_STRUCT_SIZE; i++) ds_blob[i+1] = ((char*)&device)+i;
+    ws_send_blob(ds_blob, 1+SCAN_DEVICE_STRUCT_SIZE);
+}
 
 void app_main(void) {
     store_init();
@@ -62,6 +67,7 @@ void app_main(void) {
     set_wifi_log_output(ws_send);
     set_wifi_connect_callback(ws_connect);
     set_bt_log_output(ws_send);
+    set_bt_scan_direct_callback(send_direct_scan_on_ws);
 
     uart_cli_set_command_callback(process_command);
     xTaskCreate(uart_cli_task, "uart_cli_task", TRILAT_TASK_STACK_SIZE, NULL, 10, NULL);

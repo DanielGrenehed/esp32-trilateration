@@ -10,9 +10,9 @@ struct bt_scan_device_t{
     char mac[BT_MAC_LENGTH];
 };
 
-void set_bt_device_found_callback(void (*callback)(struct bt_scan_device_t));
-
 void set_bt_log_output(void (*callback)(const char*, int, int));
+
+void set_bt_scan_direct_callback(void (*callback)(struct bt_scan_device_t));
 
 void bt_send_scan_buffer(void (*destination)(const char*, int));
 

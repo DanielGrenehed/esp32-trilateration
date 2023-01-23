@@ -1,6 +1,6 @@
 import * as cf from './config.js';
 
-const ring_buffer_size = cf.getValue('ring_buffer_size', 10);
+const ring_buffer_size = cf.getValue('ring_buffer_size', 20);
 
 class RingBuffer {
     constructor(size) {
@@ -76,19 +76,21 @@ function getValue(ringbuffer) {
 
 class Alien {
     constructor() {
-        this.map = {};
+        this.ring_buffers = {};
+        this.timestamps = {};
     }
 
     process = function(device) {
-        if (!this.map.hasOwnProperty(device.mac)) this.map[device.mac] = new RingBuffer(ring_buffer_size);
-        this.map[device.mac].push(device.rssi);
+        if (!this.ring_buffers.hasOwnProperty(device.mac)) this.ring_buffers[device.mac] = new RingBuffer(ring_buffer_size);
+        this.ring_buffers[device.mac].push(device.rssi);
+        this.timestamps[device.mac] = new Date();
     }
     
     constructIV = function() {
         let t = this;
         let out = [];
-        Object.keys(this.map).forEach(function(mac) {
-            out.push({mac:mac, rssi:getValue(t.map[mac])});
+        Object.keys(this.ring_buffers).forEach(function(mac) {
+            out.push({mac:mac, rssi:getValue(t.ring_buffers[mac]), latest_update:t.timestamps[mac]});
         });
         return out;
     }

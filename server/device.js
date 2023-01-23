@@ -71,7 +71,6 @@ class DeviceSocket {
     setBluetoothMac = function(mac) {
         if (this.bt_mac === undefined || this.bt_mac === null) {
             this.bt_mac = mac;
-            
             this.addDeviceIfValid();
         } else if (this.bt_mac != mac) console.log("Trying to overwrite bt_mac");
         else console.log("%o Bluetooth-MAC: (%s) : %s",this.socket._socket.remoteAddress, this.alias, mac);

@@ -1,6 +1,13 @@
 import * as dev from './device_handler.js';
-import * as bf from './buffer.js';
 
+function filter(iv) {
+    Object.entries(iv).forEach((key, value) => {
+        if (Object.keys(value).length < 3) {
+            delete iv[key];
+        }
+    });
+    return iv;
+}
 
 function getScanIV() {
     const active_devices = dev.listReceiverDevices();
@@ -19,7 +26,8 @@ function getScanIV() {
             }
         });
     });
-    return iv;
+    
+    return filter(iv);
 };
 
 function getTransmittersScanIV() {
@@ -34,17 +42,17 @@ function getTransmittersScanIV() {
                         console.log("Invalid mac length: %i from %s", scan_device.mac.length, scan_device.mac);
                         return;
                     }
-                    if (iv.hasOwnProperty(scan_device.mac)) {
-                        iv[scan_device.mac][device.alias] = scan_device.rssi;
-                    } else {
-                        iv[scan_device.mac] = {};
-                        iv[scan_device.mac][device.alias] = scan_device.rssi;
-                    }
+                    if (!iv.hasOwnProperty(scan_device.mac)) iv[scan_device.mac] = {};
+
+                    iv[scan_device.mac][device.alias] = scan_device.rssi;
+                    iv[scan_device.mac].time = scan_device.latest_update;
+
                 }
             });
         });
     });
-    return iv;
+
+    return filter(iv);
 }
 
 function getDeviceSetup() {

@@ -12,11 +12,11 @@ function onData(data) {
     let ignored_data_len = 0;
     Object.keys(data).forEach( (mac) => {
         let dms = Object.keys(data[mac]);
-        if (dms.length == count_devices()) {
+        let num_non_alias_properties = dms.hasOwnProperty('time') ? 1 : 0;
+        if (dms.length-num_non_alias_properties >= count_devices()) {
             valid_data[mac] = data[mac];
-        } else if (dms.length > count_devices()) {
-            requestDeviceSetup();
-            return;
+        
+            if (dms.length-num_non_alias_properties > count_devices()) requestDeviceSetup();    
         } else {
             ignored_data_len++;
         }

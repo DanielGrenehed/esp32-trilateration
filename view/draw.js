@@ -2,6 +2,7 @@ const canvas_padding = 200;
 const canvas_resolution = 1000;
 const canvas_scale = canvas_resolution - 2*canvas_padding;
 const POINT_SIZE = 10;
+const BEACON_COLOR = "#000000";
 
 let canvas = document.getElementById("canvas");
 let context = canvas.getContext("2d");
@@ -47,7 +48,7 @@ function drawCircle(x, y, r, fill) {
 }
 
 function plotDevice(device) {    
-    context.fillStyle = "#ff0000";
+    context.fillStyle = BEACON_COLOR;
     drawCircle(device.x, device.y, 12, true);
 }
 
@@ -103,7 +104,7 @@ function interescts_device(p) {
     let out={};
     for (const [alias, pos] of Object.entries(device_setup)) {
         if (distanceFromPoints({x:getReal(pos.x), y:getReal(pos.y)}, p) < 12/2) {
-            out.color = "#ff0000";
+            out.color = BEACON_COLOR;
             out.mac =alias;
         }
     }

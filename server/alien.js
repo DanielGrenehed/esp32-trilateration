@@ -1,6 +1,8 @@
 import * as cf from './config.js';
 
 const ring_buffer_size = cf.getValue('ring_buffer_size', 20);
+const min_buffer_size = cf.getValue('min_rbuffer_size', 3);
+const max_time_unannounced = cf.getValue('max_announce_interval', 1000 * 60 * 10);
 
 class RingBuffer {
     constructor(size) {
@@ -81,7 +83,10 @@ class Alien {
     }
 
     process = function(device) {
-        if (!this.ring_buffers.hasOwnProperty(device.mac)) this.ring_buffers[device.mac] = new RingBuffer(ring_buffer_size);
+        if (!this.ring_buffers.hasOwnProperty(device.mac)) {
+            this.ring_buffers[device.mac] = new RingBuffer(ring_buffer_size);
+            //console.log("New ringbuffer for %s", device.mac);
+        }
         this.ring_buffers[device.mac].push(device.rssi);
         this.timestamps[device.mac] = new Date();
     }
@@ -90,9 +95,24 @@ class Alien {
         let t = this;
         let out = [];
         Object.keys(this.ring_buffers).forEach(function(mac) {
-            out.push({mac:mac, rssi:getValue(t.ring_buffers[mac]), latest_update:t.timestamps[mac]});
+            if (t.ring_buffers[mac].ptr >= min_buffer_size) {
+                if (t.timestamps[mac] < new Date(Date.now() - max_time_unannounced)) {
+                    delete t.ring_buffers[mac];
+                    delete t.timestamps[mac];
+                } else out.push({mac:mac, rssi:getValue(t.ring_buffers[mac]), latest_update:t.timestamps[mac]});
+            }
         });
         return out;
+    }
+
+    getMAC = function(mac) {
+        if (this.ring_buffers.hasOwnProperty(mac)) {
+            if (this.timestamps[mac] < new Date(Date.now() - max_time_unannounced)) {
+                delete this.ring_buffers[mac];
+                delete this.timestamps[mac];
+            } else return {mac:mac, rssi:getValue(this.ring_buffers[mac]), latest_update:this.timestamps[mac]};
+        }
+        return null;
     }
 };
 

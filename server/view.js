@@ -14,6 +14,8 @@ function connectView(connection) {
                 connection.send(JSON.stringify(sc.getScanIV()));
             } else if (message === "T") {
                 connection.send(JSON.stringify(sc.getTransmittersScanIV()));
+            } else if (message.startsWith("M")) {
+                connection.send(JSON.stringify(sc.getScanForMAC(message.substring(1))));
             } else {
                 console.log("Received unknown message from view: '%s'", message);
             }

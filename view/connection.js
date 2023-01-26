@@ -16,12 +16,13 @@ function onData(data) {
         if (dms.length-num_non_alias_properties >= count_devices()) {
             valid_data[mac] = data[mac];
         
-            if (dms.length-num_non_alias_properties > count_devices()) requestDeviceSetup();    
+            //if (dms.length-num_non_alias_properties > count_devices()) requestDeviceSetup();    
         } else {
             ignored_data_len++;
+            console.log("Ignored %o, dms length %d", mac, dms.length);
         }
     });
-    console.log("Ignored %d, %o", ignored_data_len,latest_data);
+    if (ignored_data_len > 0) console.log("Ignored %d, %o", ignored_data_len,latest_data);
     updateData(valid_data);
 }
 
@@ -30,9 +31,9 @@ ws.onopen = (event) => {
 };
 
 ws.onmessage = (event) => {
-    console.log(event.data);
+    //console.log(event.data);
     var json_data = JSON.parse(event.data)
-    console.log(json_data);
+    //console.log(json_data);
     if (json_data === {}) return; 
     if (Object.keys(json_data)[0].length == 12) {
         onData(json_data);

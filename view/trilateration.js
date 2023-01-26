@@ -47,20 +47,14 @@ let M = 0.1, K = 0.01;
     then decrease until they do not intersect    
 */
 function expandAndReduce(data) {
-    //console.log(data);
     let receivers = createReceivers(data);
-    //console.log("Created receivers: %o", receivers);
+    if (receivers == null) return;
     if (receivers.length < 3) return;
     let radie_i =0.0;
     
-    console.log(receiversIntersects(receivers, radie_i));
     while (!receiversIntersects(receivers, radie_i)) radie_i += M;
-    //console.log("expansion done, %o", receivers);
+    while (receiversIntersects(receivers, radie_i)) radie_i -= K;
     
-    while (receiversIntersects(receivers, radie_i)) {
-        //console.log("reduction : %d ", radie_i);
-        radie_i -= K;
-    }
     radie_i += K;
     receivers.forEach(function(receiver) {receiver.e_rad = radie_i;});
     return receivers;
@@ -73,7 +67,7 @@ class Receiver {
         this.radius = rssiToMeters(rssi);
         this.e_rad = 0;
         this.position = pos;
-        console.log(this);
+        //console.log(this);
     }
 
     intersects(receiver, m) {
@@ -94,7 +88,7 @@ function createReceivers(transmitter) { // transmitter = {A:rssi, B:rssi...
     let receivers = [];
     //console.log(transmitter);
     for (const [receiver_alias, rssi] of Object.entries(transmitter)) {
-        if (receiver_alias === 'time') return;
+        if (receiver_alias === 'time') continue;
         let added = false;
         for (let i = 0; i < receivers.length; i++) {
             if (rssi > receivers[i].rssi) {
